@@ -15,54 +15,64 @@ class XmlNode {
             .map(([key, value]) => `${key}="${value}"`)
             .join(" ");
         const openingTag = attrs ? `<${this.tagName} ${attrs}>` : `<${this.tagName}>`;
+        if (this.children.length === 0 && this.textContent === "") {
+            return `${indentation}${openingTag}</${this.tagName}>`;
+        }
         if (this.children.length === 0) {
             return `${indentation}${openingTag}${this.textContent}</${this.tagName}>`;
         }
         const childrenStr = this.children.map(child => child.toString(indent + 1)).join("\n");
-        return `${indentation}${openingTag}\n
-					${childrenStr}\n
-				${indentation}</${this.tagName}>`;
+        return `${indentation}${openingTag}\n${childrenStr}\n${indentation}</${this.tagName}>`;
     }
 }
 class XmlParser {
     static parse(xmlString) {
-        //        const tagRegex = /<\/?([a-zA-Z0-9-_]+)([^>]*)>|([^<]+)/g;
         const tagRegex = /<\/([a-zA-Z0-9-_]+)>|<([a-zA-Z0-9-_]+)([^>]*)>|([^<]+)/g;
         const attrRegex = /([a-zA-Z0-9-_]+)="([^"]*)"/g;
-        const root = new XmlNode("root", {});
-        const stack = [root];
         let match;
-        let x = 0;
+        const stack = [];
+        let root = null;
         while ((match = tagRegex.exec(xmlString)) !== null) {
-            //    	console.log(match);
-            const [fullMatch, closingTag, tagName, attributes, textContent] = match;
+            console.log(match);
+            const [fullMatch, closingTag, openingTag, attributes, textContent] = match;
             if (textContent) {
                 const trimmedText = textContent.trim();
-                if (trimmedText.length > 0) {
+                if (trimmedText.length > 0 && stack.length > 0) {
                     stack[stack.length - 1].textContent += ` ${trimmedText}`;
                 }
             }
-            else if (closingTag) { // ✅ Correctly detect closing tags
-                //        console.log(closingTag); // Now this will log </child>, </subchild>, etc.
-                stack.pop();
+            else if (closingTag) {
+                console.log(`Closing Tag Found: ${closingTag}`);
+                stack.pop(); // ✅ Correctly pop stack for closing tags
             }
-            else {
+            else if (openingTag) {
+                console.log(`Opening Tag Found: ${openingTag}`);
+                // Parse attributes
                 const attrMap = {};
                 let attrMatch;
                 while ((attrMatch = attrRegex.exec(attributes)) !== null) {
                     attrMap[attrMatch[1]] = attrMatch[2];
                 }
-                const node = new XmlNode(tagName, attrMap);
-                stack[stack.length - 1].addChild(node);
-                stack.push(node);
+                const node = new XmlNode(openingTag, attrMap);
+                if (stack.length > 0) {
+                    stack[stack.length - 1].addChild(node);
+                }
+                else {
+                    root = node;
+                }
+                if (!fullMatch.endsWith("/>")) {
+                    stack.push(node);
+                }
+                //sjajak
             }
         }
-        //		console.log("Stack",stack);
-        return root.children.length > 0 ? root.children[0] : null;
+        return root;
     }
 }
+// Example XML String
 const xmlString = `
 <root>
+    Test
     <child name="first">Hello</child>
     <child name="second">
         <subchild id="1">World</subchild>
@@ -71,6 +81,6 @@ const xmlString = `
 `;
 const tree = XmlParser.parse(xmlString);
 if (tree) {
-    //	console.log(tree);
+    console.log(tree);
     console.log(tree.toString());
 }
